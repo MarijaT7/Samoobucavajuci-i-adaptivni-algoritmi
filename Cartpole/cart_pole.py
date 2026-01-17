@@ -43,20 +43,22 @@ class Enviroment():
         #takodje skup akcija
         self.actions = [-10, 10]
 
+    #naredne dve funkcije su doslovno formule sa pdf-a
+
     #F - sila koju primenjujemo
-    def f_theta(self, x, x_dot, theta, theta_dot, F):
+    def f_theta(self, theta, theta_dot, F):
         return (self.M * self.g * np.sin(theta) - \
                 np.cos(theta) * (F + self.m * self.l * theta_dot**2 * np.sin(theta))) \
                 / ((1+self.k) * self.M * self.l  - self.m*self.l*np.cos(theta)**2)
 
     #F - sila koju primenjujemo
-    def f_x(self, x, x_dot, theta, theta_dot, F):
+    def f_x(self, theta, theta_dot, F):
         return (self.m * self.g * np.sin(theta) * np.cos(theta) - (1 + self.k) * (F + self.m * self.l * theta_dot**2 * np.sin(theta))) \
                 / (self.m * np.cos(theta)**2 - (1 + self.k) * self.M)
 
     #funkcija nagrade
     def reward(self):
-        reward = -abs(self.theta)
+        reward = -(abs(self.theta))
         #sipka pala
         if self.term:
             reward = -1000
@@ -68,21 +70,25 @@ class Enviroment():
     def take_action(self, action: int):
         self.steps += 1
         if self.steps > self.max_steps:
-            self.trunc = True
+            self.trunc = True   #znaci nije terminalno stanje(pad sipke), vec smo prosto dosli do kraja epizode
             self.term = False
             
             return [self.x, self.x_dot, self.theta, self.theta_dot], self.reward(), self.trunc, self.term
 
+        #sipka pada !!!
         if abs(self.theta) > self.theta_th or abs(self.x) > self.x_th:
             self.term = True
 
         if self.term:
             return [self.x, self.x_dot, self.theta, self.theta_dot], self.reward(), self.trunc, self.term
+        
+        #primenom akcije menjaju se vrednosti ugaonih brzina, obicnih brzina, pozicije i ugla :
         F = self.actions[action]
-        self.theta_dot += self.TIME_STEP * self.f_theta(self.x, self.x_dot, self.theta, self.theta_dot, F)
-        self.x_dot += self.TIME_STEP * self.f_x(self.x, self.x_dot, self.theta, self.theta_dot, F)
+        self.theta_dot += self.TIME_STEP * self.f_theta(self.theta, self.theta_dot, F) 
+        self.x_dot += self.TIME_STEP * self.f_x(self.theta, self.theta_dot, F)
         self.theta += self.TIME_STEP * self.theta_dot
         self.x += self.TIME_STEP * self.x_dot
+
         return [self.x, self.x_dot, self.theta, self.theta_dot], self.reward(), self.trunc, self.term
 
     def reset(self):
@@ -95,8 +101,8 @@ class Enviroment():
         self.term = False
         return [self.x, self.x_dot, self.theta, self.theta_dot], self.reward(), self.trunc, self.term
 
-# Q-learning parametri
 
+# Q-learning parametri
 ALPHA = 0.1      # learning rate - koliko brzo agent uci iz novih iskustava
                  # ALPHA = 0 - agent u potpunosti ignorise novo iskustvo
                  # ALPHA = 1 - agent u potpunosti ignorise(zaboravlja) staro iskustvo, gleda samo novo
@@ -119,55 +125,65 @@ N_THETA_DOT_BINS = 10
 #granice za diskretizaciju
 
 #granice za poziciju
-x_bins = np.linspace(-2.5, 2.5, N_X_BINS)
+x_bins = np.linspace(-2.5, 2.5, N_X_BINS + 1)         # ispravila sam na +1 jer da dobijem m binova treba mi m + 1 ivica
 #granice brzina - namesteno da se sistem ponasa "realno" po claudovom razmisljanju
-x_dot_bins = np.linspace(-3, 3, N_X_DOT_BINS)
+x_dot_bins = np.linspace(-3, 3, N_X_DOT_BINS + 1)
 #granice za ugao (+- ~15stepeni) pri cemu je radijanska vrednost koriscena
-theta_bins = np.linspace(-0.26, 0.26, N_THETA_BINS)  
+theta_bins = np.linspace(-0.26, 0.26, N_THETA_BINS + 1)  
 #granice za ugaonu brzinu moraju biti male kako bi sistem bio stabilan
-theta_dot_bins = np.linspace(-2, 2, N_THETA_DOT_BINS)
-
-#zatim pravim q tabelu
-Q = np.zeros((N_X_BINS, N_X_DOT_BINS, N_THETA_BINS, N_THETA_DOT_BINS, 2))   # 2 jer imamo dve akcije +10N i -10N
+theta_dot_bins = np.linspace(-2, 2, N_THETA_DOT_BINS + 1)
 
 #funkcija za konverziju kontinualnog stanja u diskretni indeks
-
 def discretize_state(state):
     x, x_dot, theta, theta_dot = state
+    
+    #clip sprecava pojavu ekstremnih vrednosti tako sto
+    #neki autsajder postave na njemu najblizu granicu
+    #tako ce npr x = 5 biti stavljeno u bin 2,5
+    x = np.clip(x, -2.5, 2.5)
+    x_dot = np.clip(x_dot, -3, 3)
+    theta = np.clip(theta, -0.26, 0.26)
+    theta_dot = np.clip(theta_dot, -2, 2)
+    
+    #digitize - vraca vrednost bina u koji spada vrednost
     x_idx = np.digitize(x, x_bins) - 1
     x_dot_idx = np.digitize(x_dot, x_dot_bins) - 1
     theta_idx = np.digitize(theta, theta_bins) - 1
     theta_dot_idx = np.digitize(theta_dot, theta_dot_bins) - 1
     
-    x_idx = max(0, min(x_idx, N_X_BINS-1))
-    x_dot_idx = max(0, min(x_dot_idx, N_X_DOT_BINS-1))
-    theta_idx = max(0, min(theta_idx, N_THETA_BINS-1))
-    theta_dot_idx = max(0, min(theta_dot_idx, N_THETA_DOT_BINS-1))
+    #clamp - osigurava da indeks nikad ne izadje van validnog opsega
+    x_idx = max(0, min(x_idx, N_X_BINS - 1))
+    x_dot_idx = max(0, min(x_dot_idx, N_X_DOT_BINS - 1))
+    theta_idx = max(0, min(theta_idx, N_THETA_BINS - 1))
+    theta_dot_idx = max(0, min(theta_dot_idx, N_THETA_DOT_BINS - 1))
     
     return (x_idx, x_dot_idx, theta_idx, theta_dot_idx)
     
-
-env = Enviroment(100, 1000, 0.5, 0.01)
-
-#epsilon sa decay stopom kako bismo u pocetku istrazivali, a kasnije uzimali greedy akcije
-EPSILON = 1
-eps_decay_rate = 0.0001 #trebace mi nekih 10000 epizoda da bi EPSILON smanjio na 0
-EPISODES = 15000
-
-#politika koju primenjujemo
-#sa predavanja 
+#politika koju primenjujemo (са predavanja)
 #zelimo da biramo najvece vrednosti ali opet ponekad istrazujemo
-#youuuu geettt theeee bessstttt ooof bothhhh worlddddddsssssssss
 def eps_greedy(q, eps: float):
     if random.random() > eps:
         return np.argmax(q)
     else:
         return random.randint(0, 1)
 
+
+
+env = Enviroment(100, 1000, 0.5, 0.01)
+
+#zatim pravim q tabelu
+Q = np.zeros((N_X_BINS, N_X_DOT_BINS, N_THETA_BINS, N_THETA_DOT_BINS, 2))   # 2 jer imamo dve akcije +10N i -10N
+
+#epsilon sa decay stopom kako bismo u pocetku istrazivali, a kasnije uzimali greedy akcije
+EPSILON = 1
+eps_decay_rate = 0.0001 #trebace mi nekih 10000 epizoda da bi EPSILON smanjio na 0
+EPISODES = 15000
+
 #za pracenje napretka
 rewards_per_episode = []
 steps_per_episode = []
 
+#trening loop
 for episode in range(EPISODES):
     EPSILON -= eps_decay_rate if EPSILON > 0.01 else 0
 
@@ -206,33 +222,102 @@ for episode in range(EPISODES):
         avg_steps = np.mean(steps_per_episode[-1000 :])
         print(f"Epizoda {episode+1}/{EPISODES}, Prosecna nagrada>> {avg_reward:.2f}, Prosecan broj koraka>> {avg_steps:.2f}, Epsilon>>{EPSILON:.2f}")
 
+#testiranje naucene politike bez eksploracije 
+print("\n" + "="*60)
+print("TESTIRANJE NAUČENE POLITIKE (bez eksploracije)")
+print("="*60)
+
+def test_learned_policy(env, Q, n_episodes=10):
+    test_rewards = []
+    test_steps = []
+    
+    for ep in range(n_episodes):
+        state, _, _, _ = env.reset()
+        state_idx = discretize_state(state)
+        total_reward = 0
+        done = False
+        
+        while not done:
+            action = np.argmax(Q[state_idx])
+            next_state, reward, truncated, terminated = env.take_action(action)
+            state_idx = discretize_state(next_state)
+            total_reward += reward
+            done = terminated or truncated
+        
+        test_rewards.append(total_reward)
+        test_steps.append(env.steps)
+    
+    # Prikaži samo jednom ako su svi isti
+    if len(set(test_steps)) == 1:
+        print(f"Svih {n_episodes} test epizoda: {test_steps[0]} koraka, nagrada: {test_rewards[0]:.2f}")
+        print("(Identični rezultati zbog determinističkog okruženja i politike)")
+    else:
+        for ep in range(n_episodes):
+            print(f"Test epizoda {ep+1}: {test_steps[ep]} koraka, nagrada: {test_rewards[ep]:.2f}")
+    
+    return test_rewards, test_steps
+
+#poziv:
+test_rewards, test_steps = test_learned_policy(env, Q, n_episodes=10)
+
 
 #vizuelizacija rezultata iako msm da nije potrebna
-plt.figure(figsize=(12,5))
-plt.subplot(2, 2, 1)
-plt.plot(rewards_per_episode)
+plt.figure(figsize=(15, 10))
+
+# 1. Raw rewards
+plt.subplot(2, 3, 1)
+plt.plot(rewards_per_episode, alpha=0.3, color='blue')
 plt.xlabel('Epizoda')
 plt.ylabel('Ukupna nagrada')
-plt.title('Napredak tokom treniranja')
+plt.title('Nagrade tokom treniranja (raw)')
 
-plt.subplot(2, 2, 2)
-plt.plot(steps_per_episode)
+# 2. Raw steps
+plt.subplot(2, 3, 2)
+plt.plot(steps_per_episode, alpha=0.3, color='green')
 plt.xlabel('Epizoda')
 plt.ylabel('Broj koraka')
-plt.title('Broj koraka po epizodi')
+plt.title('Broj koraka po epizodi (raw)')
 
-#moving average prikazuje konvergenciju
-#dobro jer se ukloni sum
+# 3. Epsilon decay
+plt.subplot(2, 3, 3)
+epsilons = [1 - i * 0.0001 if 1 - i * 0.0001 > 0.01 else 0.01 for i in range(EPISODES)]
+plt.plot(epsilons, color='red')
+plt.xlabel('Epizoda')
+plt.ylabel('Epsilon')
+plt.title('Epsilon decay tokom treniranja')
+
+# 4. Moving average nagrade - prikazuje konvergenciju
+plt.subplot(2, 3, 4)
 window = 100
-moving_avg = np.convolve(
+moving_avg_rewards = np.convolve(
     rewards_per_episode,
     np.ones(window)/window,
     mode='valid'
 )
-plt.subplot(2, 2, 3)
-plt.plot(moving_avg)
-plt.title('Pokretni prosek nagrade (100 epizoda)')
+plt.plot(moving_avg_rewards, color='blue', linewidth=2)
+plt.xlabel('Epizoda')
+plt.ylabel('Prosečna nagrada')
+plt.title(f'Pokretni prosek nagrade ({window} epizoda)')
 
+# 5. Moving average koraka - prikazuje konvergenciju
+plt.subplot(2, 3, 5)
+moving_avg_steps = np.convolve(
+    steps_per_episode,
+    np.ones(window)/window,
+    mode='valid'
+)
+plt.plot(moving_avg_steps, color='green', linewidth=2)
+plt.xlabel('Epizoda')
+plt.ylabel('Prosečan broj koraka')
+plt.title(f'Pokretni prosek koraka ({window} epizoda)')
+
+# 6. Poslednje epizode (zoom)
+plt.subplot(2, 3, 6)
+last_n = 1000
+plt.plot(rewards_per_episode[-last_n:], alpha=0.5)
+plt.xlabel('Epizoda')
+plt.ylabel('Nagrada')
+plt.title(f'Poslednjih {last_n} epizoda (detalj)')
 
 plt.tight_layout()
 plt.show()
