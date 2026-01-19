@@ -1,6 +1,8 @@
-board = [["X","O","X"],
-         [".","O","X"],
-         [".","O","."]]
+import random
+
+board = [[".",".","."],
+         [".",".","."],
+         [".",".","."]]
 
 def check_for_winner(board):
    #Row check
@@ -90,7 +92,6 @@ def whos_turn(board):
 
     return cc
 
-
 def make_move(board, spot):
     i, j = spot
     if(whos_turn(board)):
@@ -113,10 +114,14 @@ def check_for_terminal(board):
         print("Terminal state: Draw")
         return 1
     return 0
-    
 
+def random_opp(board):
+    possible_moves = list_legal_moves(board)
+    make_move(board,random.choice(possible_moves))
 
-print(list_legal_moves(board))
-print(board)
-i = check_for_terminal(board)
-print(i)
+def minimax_opp(board):
+    pass
+
+while not check_for_terminal(board):
+    random_opp(board)
+    print(board)
