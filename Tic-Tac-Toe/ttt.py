@@ -1,6 +1,6 @@
-board = [[".",".","."],
-         [".",".","."],
-         [".",".","."]]
+board = [["X","O","X"],
+         [".","O","X"],
+         [".","O","."]]
 
 def check_for_winner(board):
    #Row check
@@ -100,11 +100,23 @@ def make_move(board, spot):
     return board
 
 def check_for_terminal(board):
-    pass
+    if check_for_winner(board):
+        print("Winner is")
+        if whos_turn(board):
+            print("X")
+            return 1
+        else:
+            print("O")
+            return 1
+
+    if not list_legal_moves(board):
+        print("Terminal state: Draw")
+        return 1
+    return 0
     
 
 
 print(list_legal_moves(board))
 print(board)
-i = check_for_winner(board)
+i = check_for_terminal(board)
 print(i)
