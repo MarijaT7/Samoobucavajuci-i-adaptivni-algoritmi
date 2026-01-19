@@ -1,3 +1,4 @@
+
 import numpy as np
 import matplotlib.pyplot as plt
 import random
@@ -185,7 +186,7 @@ steps_per_episode = []
 
 #trening loop
 for episode in range(EPISODES):
-    EPSILON -= eps_decay_rate if EPSILON > 0.01 else 0
+    EPSILON -= eps_decay_rate if EPSILON > 0.001 else 0
 
     #resetujem okruzenje
     state, _, _, _ = env.reset()
