@@ -83,7 +83,7 @@ for i in range(EPISODES):
 
     #dobit nakon svake epizode
     returns.append(gain)
-    EPSILON -= eps_decay if EPSILON > 0.01 else 0
+    EPSILON -= eps_decay if EPSILON > 0.1 else 0
 
 #test
 state, p = env.reset()
@@ -91,7 +91,7 @@ print(env.render())
 term = False
 trunc = False
 while(not term and not trunc):
-    action = eps_greedy(q_table[state, :], EPSILON)
+    action = greedy(q_table[state, :])
 
     #print(env.step(action))
     new_state,reward,term,trunc,p = env.step(action)
