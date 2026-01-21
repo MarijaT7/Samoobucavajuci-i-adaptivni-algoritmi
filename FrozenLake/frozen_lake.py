@@ -28,7 +28,7 @@ env = gym.make('FrozenLake-v1',
 EPSILON = 1
 GAMMA = 0.9
 EPISODES = 30000
-LEARING_RATE = 0.1
+LEARING_RATE = 0.01
 eps_decay =  0.0001
 
 #q tabela nam ima 64 stanja jer ima u 8x8 mapi imamo 64 polja, svako stanje je za svako polje
@@ -71,15 +71,15 @@ for i in range(EPISODES):
         g = r + GAMMA * g
         gain += r
         #returns_sums[s, a] += g
-        returns_count[s, a] += 1
+        #returns_count[s, a] += 1
 
         #naivni
         #q_table[s, a] = returns_sums[s, a] / returns_count[s, a]
 
         #inkrementalni
         #q_table[s, a] = (1 - LEARNING_RATE) * q_table[s, a] + LEARNING_RATE * (returns_sums[s, a] / returns_count[s, a])
-        q_table[s, a] += 1/returns_count[s, a]*(g - q_table[s, a])
-        #q_table[s, a] = (1 - LEARING_RATE) * q_table[s, a] + LEARING_RATE*g
+        #q_table[s, a] += 1/returns_count[s, a]*(g - q_table[s, a])
+        q_table[s, a] = (1 - LEARING_RATE) * q_table[s, a] + LEARING_RATE * g
 
     #dobit nakon svake epizode
     returns.append(gain)
